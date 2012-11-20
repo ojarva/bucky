@@ -18,7 +18,6 @@ import os
 import struct
 
 from bucky.errors import ConfigError, ProtocolError
-from bucky.names import statname
 from bucky.udpserver import UDPServer
 
 log = logging.getLogger(__name__)
@@ -233,7 +232,7 @@ class CollectDConverter(object):
         default = self.converters["_default"]
         handler = self.converters.get(sample["plugin"], default)
         try:
-            name = handler(sample)
+            name = '.'.join(handler(sample))
             if name is None:
                 return # treat None as "ignore sample"
         except:
@@ -241,7 +240,7 @@ class CollectDConverter(object):
                 sample["plugin"], handler))
             return
         stat = statname(sample.get("host", ""), name, "collectd")
-        return stat, sample["value_type"], sample["value"], int(sample["time"])
+        return stat, name, sample["value_type"], sample["value"], int(sample["time"])
 
     def _load_converters(self, cfg):
         cfg_conv = cfg.collectd_converters
@@ -287,22 +286,22 @@ class CollectDServer(UDPServer):
                 sample = self.converter.convert(sample)
                 if sample is None:
                     continue
-                name, vtype, val, time = sample
+                host, name, vtype, val, time = sample
                 if not name.strip():
                     continue
-                val = self.calculate(name, vtype, val, time)
+                val = self.calculate(host, name, vtype, val, time)
                 if val is not None:
-                    self.queue.put((name, val, time))
+                    self.queue.put((host, name, val, time))
         except ProtocolError, e:
             log.error("Protocol error: %s" % e)
             if self.last_sample is not None:
                 log.info("Last sample: %s" % self.last_sample)
         return True
 
-    def calculate(self, name, vtype, val, time):
+    def calculate(self, host, name, vtype, val, time):
         handlers = {
             0: self._calc_counter,  # counter
-            1: lambda _name, v, _time: v,         # gauge
+            1: lambda _host, _name, v, _time: v,         # gauge
             2: self._calc_derive,  # derive
             3: self._calc_absolute  # absolute
         }
@@ -310,44 +309,47 @@ class CollectDServer(UDPServer):
             log.error("Invalid value type %s for %s" % (vtype, name))
             log.info("Last sample: %s" % self.last_sample)
             return
-        return handlers[vtype](name, val, time)
+        return handlers[vtype](host, name, val, time)
 
-    def _calc_counter(self, name, val, time):
+    def _calc_counter(self, host, name, val, time):
         # I need to figure out how to handle wrapping
         # Read: http://oss.oetiker.ch/rrdtool/tut/rrdtutorial.en.html
         # and then fix later
-        if name not in self.prev_samples:
-            self.prev_samples[name] = (val, time)
+        key = (host, name)
+        if key not in self.prev_samples:
+            self.prev_samples[key] = (val, time)
             return
-        pval, ptime = self.prev_samples[name]
-        self.prev_samples[name] = (val, time)
+        pval, ptime = self.prev_samples[key]
+        self.prev_samples[key] = (val, time)
         if val < pval or time <= ptime:
-            log.error("Invalid COUNTER update for: %s" % name)
+            log.error("Invalid COUNTER update for: %s:%s" % key)
             log.info("Last sample: %s" % self.last_sample)
             return
         return float(val - pval) / (time - ptime)
 
-    def _calc_derive(self, name, val, time):
+    def _calc_derive(self, host, name, val, time):
         # Like counter, I need to figure out wrapping
-        if name not in self.prev_samples:
-            self.prev_samples[name] = (val, time)
+        key = (host, name)
+        if key not in self.prev_samples:
+            self.prev_samples[key] = (val, time)
             return
-        pval, ptime = self.prev_samples[name]
-        self.prev_samples[name] = (val, time)
+        pval, ptime = self.prev_samples[key]
+        self.prev_samples[key] = (val, time)
         if time <= ptime:
-            log.debug("Invalid DERIVE update for: %s" % name)
+            log.debug("Invalid DERIVE update for: %s:%s" % key)
             log.debug("Last sample: %s" % self.last_sample)
             return
         return float(val - pval) / (time - ptime)
 
-    def _calc_absolute(self, name, val, time):
-        if name not in self.prev_samples:
-            self.prev_samples[name] = (val, time)
+    def _calc_absolute(self, host, name, val, time):
+        key = (host, name)
+        if key not in self.prev_samples:
+            self.prev_samples[key] = (val, time)
             return
-        _pval, ptime = self.prev_samples[name]
-        self.prev_samples[name] = (val, time)
+        _pval, ptime = self.prev_samples[key]
+        self.prev_samples[key] = (val, time)
         if time <= ptime:
-            log.error("Invalid ABSOLUTE update for: %s" % name)
+            log.error("Invalid ABSOLUTE update for: %s:%s" % key)
             log.info("Last sample: %s" % self.last_sample)
             return
         return float(val) / (time - ptime)

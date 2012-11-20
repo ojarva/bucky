@@ -74,4 +74,3 @@ def statname(host, nameparts, source=None):
     if cfg.name_strip_duplicates:
         parts = strip_duplicates(parts)
     return ".".join(parts)
-

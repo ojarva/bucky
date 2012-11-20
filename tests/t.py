@@ -15,21 +15,11 @@
 # Copyright 2011 Cloudant, Inc.
 
 import Queue
-import random
 import time
+import multiprocessing
 
 import bucky.cfg as cfg
 cfg.debug = True
-
-
-class TQueue(Queue.Queue):
-    def get(self, blocking=True, timeout=2.0):
-        try:
-            return Queue.Queue.get(self, blocking, timeout)
-        except Queue.Empty:
-            if blocking:
-                raise
-            return None
 
 
 class set_cfg(object):
@@ -55,7 +45,7 @@ class udp_srv(object):
 
     def __call__(self, func):
         def run():
-            q = TQueue()
+            q = multiprocessing.Queue()
             s = self.stype(q, cfg)
             s.start()
             try:
@@ -75,10 +65,10 @@ class udp_srv(object):
         return False
 
 
-def same_stat(name, value, stat):
-    eq(name, stat[0])
-    eq(value, stat[1])
-    gt(stat[2], 0)
+def same_stat(host, name, value, stat):
+    eq(name, stat[1])
+    eq(value, stat[2])
+    gt(stat[3], 0)
 
 
 def eq(a, b):

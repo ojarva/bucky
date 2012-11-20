@@ -16,8 +16,10 @@ import logging
 import Queue
 import re
 import struct
-import threading
+import multiprocessing
 import time
+
+import bucky.names as names
 
 from bucky.errors import ConfigError, ProtocolError
 from bucky.metrics.counter import Counter
@@ -25,7 +27,6 @@ from bucky.metrics.gauge import Gauge
 from bucky.metrics.histogram import Histogram
 from bucky.metrics.meter import Meter
 from bucky.metrics.timer import Timer
-from bucky.names import statname
 from bucky.udpserver import UDPServer
 
 
@@ -93,6 +94,7 @@ class MetricsDParser(object):
             value, data = self.parse_number(data)
         else:
             value = None
+
         stat = statname(hostname, name.split("."), "metricsd")
         cmd = MetricsDCommand(stat, mtype, action, value)
         return cmd, data
@@ -120,13 +122,13 @@ class MetricsDParser(object):
         return val, data[1+sz:]
 
 
-class MetricsDHandler(threading.Thread):
+class MetricsDHandler(multiprocessing.Process):
     def __init__(self, outbox, interval):
         super(MetricsDHandler, self).__init__()
-        self.setDaemon(True)
+        self.daemon = True
         self.interval = interval
         self.outbox = outbox
-        self.inbox = Queue.Queue()
+        self.inbox = multiprocessing.Queue()
         self.next_update = time.time() + self.interval
         self.metrics = {}
 

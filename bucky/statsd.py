@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 class StatsDHandler(threading.Thread):
     def __init__(self, queue, flush_time=10):
         super(StatsDHandler, self).__init__()
-        self.setDaemon(True)
+        self.daemon = True
         self.queue = queue
         self.lock = threading.Lock()
         self.timers = {}
@@ -49,7 +49,12 @@ class StatsDHandler(threading.Thread):
             with self.lock:
                 num_stats = self.enqueue_timers(stime)
                 num_stats += self.enqueue_counters(stime)
-                self.queue.put(("stats.numStats", num_stats, stime))
+                num_stats += self.enqueue_gauges(stime)
+                self.enqueue("stats.numStats", num_stats, stime)
+
+    def enqueue(self, name, stat, stime):
+        # No hostnames on statsd
+        self.queue.put((None, name, stat, stime))
 
     def enqueue_timers(self, stime):
         ret = 0
@@ -70,12 +75,12 @@ class StatsDHandler(threading.Thread):
                 vsum = sum(v)
                 mean = vsum / float(len(v))
 
-            self.queue.put(("stats.timers.%s.mean" % k, mean, stime))
-            self.queue.put(("stats.timers.%s.upper" % k, vmax, stime))
+            self.enqueue("stats.timers.%s.mean" % k, mean, stime)
+            self.enqueue("stats.timers.%s.upper" % k, vmax, stime)
             t = int(pct_thresh)
-            self.queue.put(("stats.timers.%s.upper_%s" % (k,t), vthresh, stime))
-            self.queue.put(("stats.timers.%s.lower" % k, vmin, stime))
-            self.queue.put(("stats.timers.%s.count" % k, count, stime))
+            self.enqueue("stats.timers.%s.upper_%s" % (k,t), vthresh, stime)
+            self.enqueue("stats.timers.%s.lower" % k, vmin, stime)
+            self.enqueue("stats.timers.%s.count" % k, count, stime)
             self.timers[k] = []
             ret += 1
 
@@ -85,7 +90,7 @@ class StatsDHandler(threading.Thread):
         ret = 0
         for k, v in self.gauges.iteritems():
             stat = "stats.gauges.%s" % k
-            self.queue.put((stat, v, stime))
+            self.enqueue(stat, v, stime)
             self.gauges[k] = 0
             ret += 1
         return ret
@@ -94,9 +99,9 @@ class StatsDHandler(threading.Thread):
         ret = 0
         for k, v in self.counters.iteritems():
             stat = "stats.%s" % k
-            self.queue.put((stat, v / self.flush_time, stime))
+            self.enqueue(stat, v / self.flush_time, stime)
             stat = "stats_counts.%s" % k
-            self.queue.put((stat, v, stime))
+            self.enqueue(stat, v, stime)
             self.counters[k] = 0
             ret += 1
         return ret
@@ -148,7 +153,7 @@ class StatsDHandler(threading.Thread):
         except:
             self.bad_line()
 
-    def handle_gauge(key, fields):
+    def handle_gauge(self, key, fields):
         try:
             val = int(fields[0] or 0)
         except:
@@ -184,7 +189,10 @@ class StatsDServer(udpserver.UDPServer):
     def __init__(self, queue, cfg):
         super(StatsDServer, self).__init__(cfg.statsd_ip, cfg.statsd_port)
         self.handler = StatsDHandler(queue, flush_time=cfg.statsd_flush_time)
+
+    def run(self):
         self.handler.start()
+        super(StatsDServer, self).run()
 
     def handle(self, data, addr):
         self.handler.handle(data)

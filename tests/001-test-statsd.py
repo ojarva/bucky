@@ -18,34 +18,38 @@ import t
 import bucky.statsd
 
 @t.set_cfg("statsd_flush_time", 0.5)
+@t.set_cfg("statsd_port", 8126)
 @t.udp_srv(bucky.statsd.StatsDServer)
 def test_simple_counter(q, s):
     s.send("gorm:1|c")
-    t.same_stat("stats.gorm", 2, q.get())
-    t.same_stat("stats_counts.gorm", 1, q.get())
-    t.same_stat("stats.numStats", 1, q.get())
+    t.same_stat(None, "stats.gorm", 2, q.get())
+    t.same_stat(None, "stats_counts.gorm", 1, q.get())
+    t.same_stat(None, "stats.numStats", 1, q.get())
 
 
 @t.set_cfg("statsd_flush_time", 0.5)
+@t.set_cfg("statsd_port", 8127)
 @t.udp_srv(bucky.statsd.StatsDServer)
 def test_multiple_messages(q, s):
     s.send("gorm:1|c")
     s.send("gorm:1|c")
-    t.same_stat("stats.gorm", 4, q.get())
-    t.same_stat("stats_counts.gorm", 2, q.get())
-    t.same_stat("stats.numStats", 1, q.get())
+    t.same_stat(None, "stats.gorm", 4, q.get())
+    t.same_stat(None, "stats_counts.gorm", 2, q.get())
+    t.same_stat(None, "stats.numStats", 1, q.get())
 
 
 @t.set_cfg("statsd_flush_time", 0.5)
+@t.set_cfg("statsd_port", 8128)
 @t.udp_srv(bucky.statsd.StatsDServer)
 def test_larger_count(q, s):
     s.send("gorm:5|c")
-    t.same_stat("stats.gorm", 10, q.get())
-    t.same_stat("stats_counts.gorm", 5, q.get())
-    t.same_stat("stats.numStats", 1, q.get())
+    t.same_stat(None, "stats.gorm", 10, q.get())
+    t.same_stat(None, "stats_counts.gorm", 5, q.get())
+    t.same_stat(None, "stats.numStats", 1, q.get())
 
 
 @t.set_cfg("statsd_flush_time", 0.5)
+@t.set_cfg("statsd_port", 8129)
 @t.udp_srv(bucky.statsd.StatsDServer)
 def test_multiple_counters(q, s):
     s.send("gorm:1|c")
@@ -58,23 +62,31 @@ def test_multiple_counters(q, s):
     }
     for i in range(4):
         stat = q.get()
-        t.isin(stat[0], stats)
-        t.eq(stats[stat[0]], stat[1])
-        t.gt(stat[1], 0)
-        stats.pop(stat[0])
-    t.same_stat("stats.numStats", 2, q.get())
+        t.isin(stat[1], stats)
+        t.eq(stats[stat[1]], stat[2])
+        t.gt(stat[2], 0)
+        stats.pop(stat[1])
+    t.same_stat(None, "stats.numStats", 2, q.get())
 
 
 @t.set_cfg("statsd_flush_time", 0.5)
+@t.set_cfg("statsd_port", 8130)
 @t.udp_srv(bucky.statsd.StatsDServer)
 def test_simple_timer(q, s):
     for i in range(9):
         s.send("gorm:1|ms")
     s.send("gorm:2|ms")
-    t.same_stat("stats.timers.gorm.mean", 1, q.get())
-    t.same_stat("stats.timers.gorm.upper", 2, q.get())
-    t.same_stat("stats.timers.gorm.upper_90", 1, q.get())
-    t.same_stat("stats.timers.gorm.lower", 1, q.get())
-    t.same_stat("stats.timers.gorm.count", 10, q.get())
-    t.same_stat("stats.numStats", 1, q.get())
+    t.same_stat(None, "stats.timers.gorm.mean", 1, q.get())
+    t.same_stat(None, "stats.timers.gorm.upper", 2, q.get())
+    t.same_stat(None, "stats.timers.gorm.upper_90", 1, q.get())
+    t.same_stat(None, "stats.timers.gorm.lower", 1, q.get())
+    t.same_stat(None, "stats.timers.gorm.count", 10, q.get())
+    t.same_stat(None, "stats.numStats", 1, q.get())
 
+
+@t.set_cfg("statsd_flush_time", 0.5)
+@t.udp_srv(bucky.statsd.StatsDServer)
+def test_simple_gauge(q, s):
+    s.send("gorm:5|g")
+    t.same_stat(None, "stats.gauges.gorm", 5, q.get())
+    t.same_stat(None, "stats.numStats", 1, q.get())
