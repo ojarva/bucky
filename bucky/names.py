@@ -65,7 +65,8 @@ def statname(host, nameparts, source=None):
             parts.append(getattr(cfg, "prefix_source_name_%s" % source, False))
         elif cfg.prefix_source_name:
             parts.append(source)
-    parts.extend(hostname(host))
+    if host:
+        parts.extend(hostname(host))
     parts.extend(nameparts)
     if cfg.name_postfix:
         parts.append(cfg.name_postfix)
