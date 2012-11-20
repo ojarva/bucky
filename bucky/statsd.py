@@ -20,6 +20,7 @@ import re
 import threading
 import time
 
+import bucky.names as names
 import bucky.udpserver as udpserver
 
 

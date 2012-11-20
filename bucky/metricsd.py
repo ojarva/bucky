@@ -95,7 +95,7 @@ class MetricsDParser(object):
         else:
             value = None
 
-        stat = statname(hostname, name.split("."), "metricsd")
+        stat = names.statname(hostname, name.split("."), "metricsd")
         cmd = MetricsDCommand(stat, mtype, action, value)
         return cmd, data
 
